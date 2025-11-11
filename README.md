@@ -116,7 +116,7 @@ var webApplicationFactory = new WebApplicationFactory<Program>()
 
 Once the mock endpoint has been invoked, you'd probably need to ensure that the mock have been really invoked.
 
-With Aspire, you can do it like this using the MicrocksProvider:
+With Aspire, you can do it like this using the MicrocksClient:
 
 ```csharp
 var app = orderHostAspireFactory.App;
@@ -210,7 +210,7 @@ public async Task TestOpenApiContract()
 You can retrieve and inspect exchanged messages for advanced business conformance validation. Here is an example that matches the test code:
 
 ```csharp
-var messages = await microcksProvider.GetMessagesForTestCaseAsync(testResult, "POST /orders", TestContext.Current.CancellationToken);
+var messages = await microcksClient.GetMessagesForTestCaseAsync(testResult, "POST /orders", TestContext.Current.CancellationToken);
 foreach (var message in messages)
 {
     if ("201".Equals(message.Response.Status))
@@ -250,18 +250,22 @@ With Aspire, all these features are automatically available when you add the Mic
 
 #### Advanced Configuration
 
-You can configure additional features directly in your AppHost:
+You can configure additional features directly in your AppHost,
+to support more advanced use-cases like AsyncAPI contract-testing or Postman contract-testing, we introduced dedicated extension methods for the MicrocksBuilder that allow managing additional Microcks services.
+
+[Different levels of API contract testing](https://medium.com/@lbroudoux/different-levels-of-api-contract-testing-with-microcks-ccc0847f8c97)
+in the Inner Loop with Testcontainers and available in Microcks .NET Aspire!
 
 ```csharp
 var microcks = builder.AddMicrocks("microcks")
     .WithMainArtifacts("pastry-orders-asyncapi.yml")
     // Additional configuration can be added here
-    ;
+    .WithPostmanRunner(); // Enables Postman contract-testing support
 ```
 
 #### Postman contract-testing
 
-For Postman contract-testing, you can use the same TestRequest pattern with the MicrocksProvider:
+For Postman contract-testing, you can use the same TestRequest pattern with the MicrocksClient:
 
 ```csharp
 var microcksClient = app.CreateMicrocksClient("microcks");
@@ -276,11 +280,22 @@ var testRequest = new TestRequest
 TestResult testResult = await microcksClient.TestEndpointAsync(testRequest, TestContext.Current.CancellationToken);
 ```
 
+If you want to configure Postman runner specific settings, you can do it when adding the Postman runner to the Microcks resource:
+
+```csharp
+var microcks = builder.AddMicrocks("microcks")
+    .WithPostmanRunner(postmanBuilder =>
+    {
+        // Customize Postman runner settings
+        postmanBuilder.WithEnvironment("MY_ENV_VAR", "sample");
+    });
+```
+
 **Note:** With Aspire, the complexity of managing multiple containers and networks is abstracted away. The distributed application model handles service discovery, networking, and lifecycle management automatically.
 
 ### Async API contract-testing and mocking
 
-Async APIs can also be mocked and contract-tested using Microcks with Aspire. You can import AsyncAPI artifacts and use the MicrocksProvider to validate message exchanges.
+Async APIs can also be mocked and contract-tested using Microcks with Aspire. You can import AsyncAPI artifacts and use the MicrocksClient to validate message exchanges.
 
 This feature requires to be explicitly enabled when adding the Microcks resource.
 It's done by calling the `WithAsyncFeature()` method as shown below:
