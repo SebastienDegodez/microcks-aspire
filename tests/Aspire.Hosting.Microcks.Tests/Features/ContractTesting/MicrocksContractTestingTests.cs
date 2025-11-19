@@ -25,6 +25,7 @@ using Aspire.Hosting.Microcks.Clients.Model;
 using Aspire.Microcks.Testing.Features.Mocking.Contract;
 
 using System.Collections.Generic;
+using Aspire.Hosting.Testing;
 
 namespace Aspire.Hosting.Microcks.Tests.Features.ContractTesting;
 
@@ -35,16 +36,9 @@ namespace Aspire.Hosting.Microcks.Tests.Features.ContractTesting;
 /// and the demo implementations expose HTTP endpoints.
 /// </summary>
 [Collection(MicrocksContractValidationCollection.CollectionName)]
-public sealed class MicrocksContractTestingTests
+public sealed class MicrocksContractTestingTests(MicrocksContractValidationFixture fixture)
 {
-    private readonly MicrocksContractValidationFixture _fixture;
-    private readonly ITestOutputHelper _testOutputHelper;
-
-    public MicrocksContractTestingTests(MicrocksContractValidationFixture fixture, ITestOutputHelper testOutputHelper)
-    {
-        _fixture = fixture;
-        _testOutputHelper = testOutputHelper;
-    }
+    private readonly MicrocksContractValidationFixture _fixture = fixture;
 
     /// <summary>
     /// Tests calling the TestEndpoint API of Microcks with the bad implementation,
@@ -129,9 +123,11 @@ public sealed class MicrocksContractTestingTests
         Assert.Empty(goodTestResult.TestCaseResults[0].TestStepResults[0].Message);
     }
 
-    // Sur base de WhenCallingTestEndpoint_WithBadImplementation_ShouldReturnValidationFailures 
-    // On va passer un header dans le TestRequest et vérifier qu'il est bien pris en compte 
-    // et de retour dans le test result (dans OperationHeader)
+    /// <summary>
+    /// Tests calling the TestEndpoint API of Microcks with custom headers,
+    /// expecting the headers to be reflected in the test result.
+    /// </summary>
+    /// <returns></returns>
     [Fact]
     public async Task WhenCallingTestEndpoint_WithHeader_ShouldReturnHeaderInTestResult()
     {
@@ -140,7 +136,7 @@ public sealed class MicrocksContractTestingTests
 
         var microcksResource = _fixture.MicrocksResource;
 
-        var microcksProvider = _fixture.App.CreateMicrocksClient(microcksResource.Name);
+        var microcksClient = _fixture.App.CreateMicrocksClient(microcksResource.Name);
 
         TestRequest headerTestRequest = new()
         {
@@ -163,7 +159,7 @@ public sealed class MicrocksContractTestingTests
         };
 
         // Call TestEndpoint from Microcks Resource
-        var testResult = await microcksProvider.TestEndpointAsync(
+        var testResult = await microcksClient.TestEndpointAsync(
             headerTestRequest,
             TestContext.Current.CancellationToken);
 
@@ -183,5 +179,6 @@ public sealed class MicrocksContractTestingTests
         var expectedValues = new List<string> { "value1", "value2", "value3" };
         Assert.Equivalent(expectedValues, headerValues);
     }
+
 }
 
