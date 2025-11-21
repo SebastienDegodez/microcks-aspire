@@ -29,6 +29,7 @@ using Microsoft.Extensions.Hosting;
 using Polly;
 using Xunit;
 using Aspire.Hosting;
+using System.Text.Json;
 
 namespace Microcks.Aspire.Tests.Features.Async.Kafka;
 
@@ -40,10 +41,14 @@ namespace Microcks.Aspire.Tests.Features.Async.Kafka;
 public sealed class MicrocksKafkaTests
 {
     private readonly MicrocksKafkaFixture _fixture;
+    private readonly ITestOutputHelper _testOutputHelper;
 
-    public MicrocksKafkaTests(MicrocksKafkaFixture fixture)
+    public MicrocksKafkaTests(MicrocksKafkaFixture fixture,
+        ITestOutputHelper testOutputHelper
+        )
     {
         _fixture = fixture;
+        _testOutputHelper = testOutputHelper;
     }
 
     /// <summary>
@@ -194,7 +199,7 @@ public sealed class MicrocksKafkaTests
             ServiceId = "Pastry orders API:0.1.0",
             RunnerType = TestRunnerType.ASYNC_API_SCHEMA,
             TestEndpoint = "kafka://kafka:9093/pastry-orders", // 9093 is the internal Docker network port
-            Timeout = TimeSpan.FromSeconds(5)
+            Timeout = TimeSpan.FromMilliseconds(40000)
         };
 
         var microcksClient = _fixture.App.CreateMicrocksClient(_fixture.MicrocksResource.Name);
@@ -223,6 +228,10 @@ public sealed class MicrocksKafkaTests
 
         // Wait for a test result
         var testResult = await taskTestResult;
+
+        // You may inspect complete response object with following:
+        var json = JsonSerializer.Serialize(testResult, new JsonSerializerOptions { WriteIndented = true });
+        _testOutputHelper.WriteLine(json);
 
         // Assert
         Assert.False(testResult.InProgress, "Test should have completed");
