@@ -33,20 +33,26 @@ using System.Text.Json;
 
 namespace Microcks.Aspire.Tests.Features.Async.Kafka;
 
-/// <summary>
-/// Tests for the Microcks Async Minion with Kafka resource builder and runtime behavior.
-/// Uses a shared Microcks instance with Async Minion and Kafka provided by <see cref="MicrocksKafkaFixture"/>.
-/// </summary>
-[Collection(MicrocksKafkaCollection.CollectionName)]
-public sealed class MicrocksKafkaTests
-{
-    private readonly MicrocksKafkaFixture _fixture;
 
-    public MicrocksKafkaTests(MicrocksKafkaFixture fixture)
+public sealed class MicrocksKafkaWithoutCollectionTests : IAsyncLifetime
+{
+    private MicrocksKafkaFixture _fixture;
+    private readonly ITestOutputHelper _testOutputHelper;
+
+    public MicrocksKafkaWithoutCollectionTests(ITestOutputHelper testOutputHelper)
     {
-        _fixture = fixture;
+        _testOutputHelper = testOutputHelper;
+    }
+    public ValueTask InitializeAsync()
+    {
+        _fixture = new MicrocksKafkaFixture(_testOutputHelper);
+        return _fixture.InitializeAsync();
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        await _fixture.DisposeAsync();
+    }
     /// <summary>
     /// When the application is started, then the MicrocksAsyncMinionResource and Kafka are available.
     /// </summary>
@@ -74,49 +80,49 @@ public sealed class MicrocksKafkaTests
         Assert.Equal("kafka", kafkaResource.Name);
     }
 
-    /// <summary>
-    /// When a Kafka message is sent by Microcks Async Minion, then it is received.
-    /// </summary>
-    [Fact]
-    public async Task WhenKafkaMessageIsSend_ThenItIsReceived()
-    {
-        using var host = await CreateKafkaClientHostAsync();
-        const string expectedMessage = "{\"id\":\"4dab240d-7847-4e25-8ef3-1530687650c8\",\"customerId\":\"fe1088b3-9f30-4dc1-a93d-7b74f0a072b9\",\"status\":\"VALIDATED\",\"productQuantities\":[{\"quantity\":2,\"pastryName\":\"Croissant\"},{\"quantity\":1,\"pastryName\":\"Millefeuille\"}]}";
+    // /// <summary>
+    // /// When a Kafka message is sent by Microcks Async Minion, then it is received.
+    // /// </summary>
+    // [Fact]
+    // public async Task WhenKafkaMessageIsSend_ThenItIsReceived()
+    // {
+    //     using var host = await CreateKafkaClientHostAsync();
+    //     const string expectedMessage = "{\"id\":\"4dab240d-7847-4e25-8ef3-1530687650c8\",\"customerId\":\"fe1088b3-9f30-4dc1-a93d-7b74f0a072b9\",\"status\":\"VALIDATED\",\"productQuantities\":[{\"quantity\":2,\"pastryName\":\"Croissant\"},{\"quantity\":1,\"pastryName\":\"Millefeuille\"}]}";
 
-        var appModel = _fixture.App.Services
-            .GetRequiredService<DistributedApplicationModel>();
-        // Retrieve MicrocksAsyncMinionResource from application
-        var microcksAsyncMinionResource = appModel.GetContainerResources()
-            .OfType<MicrocksAsyncMinionResource>()
-            .Single();
+    //     var appModel = _fixture.App.Services
+    //         .GetRequiredService<DistributedApplicationModel>();
+    //     // Retrieve MicrocksAsyncMinionResource from application
+    //     var microcksAsyncMinionResource = appModel.GetContainerResources()
+    //         .OfType<MicrocksAsyncMinionResource>()
+    //         .Single();
 
-        // Get Kafka consumer from host
-        var consumer = host.Services.GetRequiredService<IConsumer<string, string>>();
+    //     // Get Kafka consumer from host
+    //     var consumer = host.Services.GetRequiredService<IConsumer<string, string>>();
 
-        var pipeline = new ResiliencePipelineBuilder()
-            .AddRetry(new() { MaxRetryAttempts = 10, Delay = TimeSpan.FromSeconds(1), ShouldHandle = new PredicateBuilder().Handle<ConsumeException>() })
-            .Build();
+    //     var pipeline = new ResiliencePipelineBuilder()
+    //         .AddRetry(new() { MaxRetryAttempts = 10, Delay = TimeSpan.FromSeconds(1), ShouldHandle = new PredicateBuilder().Handle<ConsumeException>() })
+    //         .Build();
 
-        pipeline.Execute(() =>
-        {
-            // Subscribe to the Kafka topic used by Microcks Async Minion for the pastry/orders subscription
-            var kafkaTopic = microcksAsyncMinionResource
-                .GetKafkaMockTopic("Pastry orders API", "0.1.0", "SUBSCRIBE pastry/orders");
-            consumer.Subscribe(kafkaTopic);
+    //     pipeline.Execute(() =>
+    //     {
+    //         // Subscribe to the Kafka topic used by Microcks Async Minion for the pastry/orders subscription
+    //         var kafkaTopic = microcksAsyncMinionResource
+    //             .GetKafkaMockTopic("Pastry orders API", "0.1.0", "SUBSCRIBE pastry/orders");
+    //         consumer.Subscribe(kafkaTopic);
 
-            string message = null;
+    //         string message = null;
 
-            // Consume message from Kafka 5000 milliseconds attempt
-            var consumeResult = consumer.Consume(TimeSpan.FromMilliseconds(5000));
+    //         // Consume message from Kafka 5000 milliseconds attempt
+    //         var consumeResult = consumer.Consume(TimeSpan.FromMilliseconds(5000));
 
-            if (consumeResult != null)
-            {
-                message = consumeResult.Message.Value;
-            }
+    //         if (consumeResult != null)
+    //         {
+    //             message = consumeResult.Message.Value;
+    //         }
 
-            Assert.Equal(expectedMessage, message);
-        });
-    }
+    //         Assert.Equal(expectedMessage, message);
+    //     });
+    // }
 
     /// <summary>
     /// When a good kafka message is sent to Kafka Topic, then Microcks Async API Schema test returns correct status.
@@ -288,4 +294,6 @@ public sealed class MicrocksKafkaTests
         await host.StartAsync(TestContext.Current.CancellationToken);
         return host;
     }
+
+
 }

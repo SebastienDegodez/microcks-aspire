@@ -19,14 +19,18 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Aspire.Hosting.ApplicationModel;
 using Microcks.Aspire.Async;
 using Microcks.Aspire.Testing;
-using Aspire.Confluent.Kafka;
 using Xunit;
-using Xunit.Internal;
 using Aspire.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
+using Xunit.Sdk;
+using Xunit.v3;
+
+// Both standard output and standard error
+[assembly: CaptureConsole]
 namespace Microcks.Aspire.Tests.Fixtures.Async.Kafka;
 
 /// <summary>
@@ -39,11 +43,35 @@ public sealed class MicrocksKafkaFixture : IAsyncLifetime
     public DistributedApplication App { get; private set; } = default!;
     public MicrocksResource MicrocksResource { get; private set; } = default!;
     public KafkaServerResource KafkaResource { get; private set; } = default!;
+    public IMessageSink MessageSink { get; }
+    public ITestOutputHelper TestOutputHelper { get; private set; }
 
+    public MicrocksKafkaFixture(ITestOutputHelper outputHelper)
+    {
+        TestOutputHelper = outputHelper;
+    }
     public async ValueTask InitializeAsync()
     {
-        // Create builder without per-test ITestOutputHelper to avoid recreating logging per test
-        Builder = TestDistributedApplicationBuilder.Create(o => { });
+        Builder = TestDistributedApplicationBuilder.Create(o =>
+        {
+            o.EnableResourceLogging = true;
+        }).WithTestAndResourceLogging(TestOutputHelper);
+
+        TestContext.Current.SendDiagnosticMessage("Setting up Microcks with Async Minion and Kafka fixture...");
+        Builder.Services.AddLogging(logging =>
+        {
+            //logging.ClearProviders();
+            logging.AddSimpleConsole(configure =>
+            {
+                configure.SingleLine = true;
+            });
+
+            logging.SetMinimumLevel(LogLevel.Trace);
+            logging.AddFilter("Aspire", LogLevel.Debug);
+            logging.AddFilter(Builder.Environment.ApplicationName, LogLevel.Trace);
+        });
+
+
 
         // Add Kafka server
         var kafkaBuilder = Builder.AddKafka("kafka")
